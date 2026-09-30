@@ -87,6 +87,10 @@ export class MockApiService {
     localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(logs));
   }
 
+  private getActiveRole(): string {
+    return localStorage.getItem('veriflow_active_role_v1') || 'AP_REVIEWER';
+  }
+
   public getSettings(): AppSettings {
     const raw = localStorage.getItem(STORAGE_KEY_SETTINGS);
     if (!raw) return DEFAULT_SETTINGS;
@@ -98,6 +102,10 @@ export class MockApiService {
   }
 
   public updateSettings(settings: Partial<AppSettings>): AppSettings {
+    const role = this.getActiveRole();
+    if (role !== 'FINANCE_MANAGER') {
+      throw new Error('403 Forbidden: Only Finance Managers can configure policy rules.');
+    }
     const current = this.getSettings();
     const updated = { ...current, ...settings };
     localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(updated));
@@ -109,8 +117,6 @@ export class MockApiService {
     const invoices = this.getInvoicesStore();
     
     // Dynamic recalculation of stats based on actual store
-    const total = Math.max(128, invoices.length);
-    const clean = invoices.filter((i) => i.status === 'clean').length;
     const exceptions = invoices.filter((i) => i.status === 'exception').length;
     const pending = invoices.filter((i) => i.status === 'pending').length;
 
@@ -144,9 +150,16 @@ export class MockApiService {
     search?: string;
     page?: number;
     limit?: number;
+    forceRequesterOnly?: boolean;
   }): Promise<{ invoices: Invoice[]; total: number; page: number; totalPages: number }> {
     await delay(200);
     let invoices = this.getInvoicesStore();
+    const role = this.getActiveRole();
+
+    // Requesters must NOT view other users' confidential invoices
+    if (role === 'REQUESTER' || params?.forceRequesterOnly) {
+      invoices = invoices.filter((i) => i.submittedBy === 'usr-req-01' || !i.submittedBy);
+    }
 
     if (params?.status && params.status !== 'all') {
       invoices = invoices.filter((inv) => inv.status === params.status);
@@ -169,28 +182,40 @@ export class MockApiService {
 
     const page = params?.page || 1;
     const limit = params?.limit || 8;
-    const total = 128; // Standard enterprise dataset baseline
+    const total = invoices.length;
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
 
-    // Pad or slice for demo pagination
     const paginated = invoices.slice(startIndex, endIndex);
 
     return {
       invoices: paginated.length > 0 ? paginated : invoices.slice(0, limit),
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
 
   async fetchInvoiceById(id: string): Promise<Invoice | null> {
     await delay(150);
     const invoices = this.getInvoicesStore();
-    return invoices.find((inv) => inv.id.toLowerCase() === id.toLowerCase()) || null;
+    const inv = invoices.find((i) => i.id.toLowerCase() === id.toLowerCase()) || null;
+    const role = this.getActiveRole();
+
+    // Requesters can only view their own invoice records
+    if (inv && role === 'REQUESTER' && inv.submittedBy && inv.submittedBy !== 'usr-req-01') {
+      throw new Error('403 Forbidden: You do not have permission to view other users confidential invoices.');
+    }
+
+    return inv;
   }
 
   async approveInvoice(id: string, note?: string): Promise<Invoice> {
+    const role = this.getActiveRole();
+    if (role === 'REQUESTER') {
+      throw new Error('403 Forbidden: Requesters are not permitted to approve invoices.');
+    }
+
     await delay(400);
     const invoices = this.getInvoicesStore();
     const index = invoices.findIndex((i) => i.id.toLowerCase() === id.toLowerCase());
@@ -219,7 +244,7 @@ export class MockApiService {
       previousStatus: previousStatus,
       newStatus: 'clean',
       reason: note || 'Exception verified and approved by user',
-      user: 'AP Reviewer (You)',
+      user: role === 'FINANCE_MANAGER' ? 'Elena Rostova (Finance Manager)' : 'Jordan Lee (AP Reviewer)',
     });
     this.saveAuditStore(auditLogs);
 
@@ -227,6 +252,11 @@ export class MockApiService {
   }
 
   async rejectInvoice(id: string, reason: string): Promise<Invoice> {
+    const role = this.getActiveRole();
+    if (role === 'REQUESTER') {
+      throw new Error('403 Forbidden: Requesters are not permitted to reject invoices.');
+    }
+
     await delay(400);
     const invoices = this.getInvoicesStore();
     const index = invoices.findIndex((i) => i.id.toLowerCase() === id.toLowerCase());

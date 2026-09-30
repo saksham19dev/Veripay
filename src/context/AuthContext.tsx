@@ -1,9 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { User, UserRole, DEMO_USERS } from '../types/auth';
 
 interface AuthContextType {
   user: User;
   role: UserRole;
+  isAuthenticated: boolean;
+  login: (role: UserRole) => void;
+  logout: () => void;
   switchRole: (newRole: UserRole) => void;
   isRequester: boolean;
   isReviewer: boolean;
@@ -14,6 +17,7 @@ interface AuthContextType {
 }
 
 const STORAGE_KEY_ROLE = 'veriflow_active_role_v1';
+const STORAGE_KEY_AUTH = 'veriflow_is_auth_v1';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -26,11 +30,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return 'AP_REVIEWER';
   });
 
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const auth = localStorage.getItem(STORAGE_KEY_AUTH);
+    return auth !== 'false'; // default authenticated for easy navigation
+  });
+
   const user = DEMO_USERS[role];
 
   const switchRole = (newRole: UserRole) => {
     setRole(newRole);
+    setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEY_ROLE, newRole);
+    localStorage.setItem(STORAGE_KEY_AUTH, 'true');
+  };
+
+  const login = (chosenRole: UserRole) => {
+    setRole(chosenRole);
+    setIsAuthenticated(true);
+    localStorage.setItem(STORAGE_KEY_ROLE, chosenRole);
+    localStorage.setItem(STORAGE_KEY_AUTH, 'true');
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    localStorage.setItem(STORAGE_KEY_AUTH, 'false');
   };
 
   const isRequester = role === 'REQUESTER';
@@ -46,6 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         role,
+        isAuthenticated,
+        login,
+        logout,
         switchRole,
         isRequester,
         isReviewer,

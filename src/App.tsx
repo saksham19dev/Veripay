@@ -7,6 +7,9 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { PageContainer } from './components/layout/PageContainer';
 
+// Authentication
+import { Login } from './pages/Login';
+
 // Primary AP Reviewer Pages
 import { Dashboard } from './pages/Dashboard';
 import { UploadInvoices } from './pages/UploadInvoices';
@@ -32,7 +35,8 @@ import { PolicyRulesConfig } from './pages/manager/PolicyRulesConfig';
 
 // Helper component for smart root redirect based on active role
 const RootRedirect: React.FC = () => {
-  const { role } = useAuth();
+  const { role, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (role === 'REQUESTER') return <Navigate to="/requester/dashboard" replace />;
   if (role === 'FINANCE_MANAGER') return <Navigate to="/manager/dashboard" replace />;
   return <Navigate to="/dashboard" replace />;
@@ -40,6 +44,11 @@ const RootRedirect: React.FC = () => {
 
 function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] flex text-slate-800">
@@ -52,7 +61,7 @@ function MainLayout() {
 
       {/* Main App Container */}
       <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-        {/* Top Header with Role Switcher */}
+        {/* Top Header with Role Switcher & Profile Logout */}
         <Header onMenuClick={() => setMobileMenuOpen(true)} />
 
         {/* Page Content View */}
@@ -222,7 +231,10 @@ export function App() {
     <ToastProvider>
       <AuthProvider>
         <BrowserRouter>
-          <MainLayout />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/*" element={<MainLayout />} />
+          </Routes>
         </BrowserRouter>
       </AuthProvider>
     </ToastProvider>
