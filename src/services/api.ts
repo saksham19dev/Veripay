@@ -156,14 +156,53 @@ class ApiService {
   }
 
   // AI Assistant Chat
-  async sendChatMessage(message: string): Promise<ChatMessage> {
+  async sendChatMessage(message: string, invoiceId?: string): Promise<ChatMessage> {
     return this.request<ChatMessage>(
       '/api/chat',
       {
         method: 'POST',
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, invoice_id: invoiceId }),
       },
       () => mockApi.chat(message)
+    );
+  }
+
+  // AI Module Endpoints
+  async analyzeInvoice(invoiceId: string): Promise<any> {
+    return this.request(
+      `/api/ai/analyze/${invoiceId}`,
+      { method: 'POST' },
+      async () => {
+        const inv = await mockApi.fetchInvoiceById(invoiceId);
+        return {
+          invoice_id: invoiceId,
+          risk_score: inv?.status === 'clean' ? 0 : 75,
+          risk_level: inv?.status === 'clean' ? 'LOW' : 'HIGH',
+          rule_score: inv?.status === 'clean' ? 0 : 45,
+          ml_score: inv?.status === 'clean' ? 5 : 30,
+          reasons: inv?.reason ? [inv.reason] : [],
+          evidence: inv?.matchedEvidence || {},
+          explanation: inv?.aiExplanation || 'Deterministic checks evaluated.',
+          recommendation: inv?.status === 'clean' ? 'Likely clean. Auto-pass permitted.' : 'Manual review required.',
+          model_version: 'veriflow-risk-v1',
+        };
+      }
+    );
+  }
+
+  async getInvoiceExplanation(invoiceId: string): Promise<any> {
+    return this.request(
+      `/api/ai/explanation/${invoiceId}`,
+      { method: 'GET' },
+      async () => {
+        const inv = await mockApi.fetchInvoiceById(invoiceId);
+        return {
+          invoice_id: invoiceId,
+          explanation: inv?.aiExplanation || 'Invoice verified.',
+          risk_level: inv?.status === 'clean' ? 'LOW' : 'HIGH',
+          risk_score: inv?.status === 'clean' ? 0 : 75,
+        };
+      }
     );
   }
 

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.api.deps import get_current_user_context
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.ai_service import AIService
+from app.ai.service import AIServiceModule
 
 router = APIRouter(tags=["AI Assistant"])
 
@@ -19,7 +19,7 @@ def chat_with_assistant(
     db: Session = Depends(get_db),
     user_ctx: dict = Depends(get_current_user_context),
 ):
-    return AIService.answer_chat(
+    return AIServiceModule.chat_query(
         message=payload.message,
         db=db,
         invoice_id=payload.invoice_id,

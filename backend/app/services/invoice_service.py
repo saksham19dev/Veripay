@@ -14,6 +14,11 @@ from app.schemas.exception import ExceptionResponse
 from app.services.validation_service import ValidationService
 from app.services.audit_service import AuditService
 from app.services.ai_service import AIService
+from app.ai.features import extract_features_from_context
+from app.ai.risk_model import risk_model
+from app.ai.risk_scoring import calculate_rule_score, combine_scores
+from app.ai.evidence import EvidenceEngine
+from app.ai.explainer import AIExplainer
 
 
 # Aliases dictionary for normalizing column headers
@@ -322,6 +327,19 @@ class InvoiceService:
                 in_memory_candidates=in_memory_candidates,
             )
 
+            # Extract features and compute ML risk score
+            features_df = extract_features_from_context(
+                invoice_dict=eval_payload,
+                db=db,
+                violations=violations,
+                duplicate_candidate=None,
+            )
+            ml_prob, ml_score = risk_model.predict_risk(features_df)
+            rule_sc = calculate_rule_score(violations)
+            score_res = combine_scores(rule_score=rule_sc, ml_score=ml_score)
+            risk_score = score_res["risk_score"]
+            risk_level = score_res["risk_level"]
+
             # Build evidence and tax details
             matched_evidence = None
             for v in violations:
@@ -334,24 +352,27 @@ class InvoiceService:
                 "isVerified": (tax > 0 and len([v for v in violations if v.exception_type == "TAX_MISMATCH"]) == 0),
             }
 
-            # Generate AI explanation
-            temp_inv = Invoice(
-                id=inv_id,
-                supplier=supplier,
-                amount=amt,
-                status=status,
-                workflow_status=workflow_status,
-                risk_score=risk_score,
-                risk_level=risk_level,
-                reason=primary_reason,
+            # Build grounded evidence payload
+            evidence_obj = EvidenceEngine.build_evidence(
+                invoice_dict=eval_payload,
+                violations=violations,
+                duplicate_candidate=matched_evidence,
             )
-            ai_explanation = AIService.generate_invoice_explanation(temp_inv, violations)
+
+            # Generate grounded factual explanation
+            ai_explanation = AIExplainer.generate_explanation(
+                invoice_id=inv_id,
+                risk_level=risk_level,
+                risk_score=risk_score,
+                evidence=evidence_obj,
+                rule_score=rule_sc,
+                ml_score=ml_score,
+            )
 
             # Check if invoice with this ID already exists in DB (handle gracefully / update or version)
             existing = db.query(Invoice).filter(Invoice.id == inv_id).first()
             if existing:
                 inv_id = f"{inv_id}-DUP"
-                temp_inv.id = inv_id
 
             invoice_record = Invoice(
                 id=inv_id,

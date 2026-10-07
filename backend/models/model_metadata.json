@@ -1,0 +1,39 @@
+{
+  "model_version": "veriflow-risk-v1",
+  "model_type": "RandomForestClassifier",
+  "trained_at": "2026-10-07T05:47:03.365729",
+  "is_synthetic_training_data": true,
+  "features": [
+    "invoice_amount",
+    "tax_amount",
+    "tax_percentage",
+    "total_amount",
+    "missing_field_count",
+    "duplicate_similarity",
+    "supplier_invoice_count",
+    "supplier_average_amount",
+    "supplier_amount_deviation",
+    "amount_deviation_percentage",
+    "days_since_previous_supplier_invoice",
+    "policy_violation_count",
+    "validation_error_count",
+    "previous_duplicate_count"
+  ],
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "confusion_matrix": [
+      [
+        180,
+        0
+      ],
+      [
+        0,
+        120
+      ]
+    ]
+  },
+  "disclaimer": "DEMO MODEL \u2014 Trained on synthetic data. Outputs indicate review urgency, not legal fraud."
+}

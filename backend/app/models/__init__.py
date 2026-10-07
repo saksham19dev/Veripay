@@ -4,6 +4,7 @@ from app.models.exception import InvoiceException
 from app.models.audit_log import AuditLog
 from app.models.chat import ChatMessageModel
 from app.models.setting import PolicySetting
+from app.models.ai_analysis import AIAnalysis
 
 __all__ = [
     "User",
@@ -12,4 +13,5 @@ __all__ = [
     "AuditLog",
     "ChatMessageModel",
     "PolicySetting",
+    "AIAnalysis",
 ]

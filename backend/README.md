@@ -79,13 +79,24 @@ backend/
 │   ├── config.py                # Environment and business rule configurations
 │   ├── database.py              # SQLAlchemy engine, session factory, get_db dependency
 │   │
+│   ├── ai/                      # Real, Modular, Explainable AI Module
+│   │   ├── __init__.py          # Module exports
+│   │   ├── features.py          # 14-feature extraction from invoice & DB history
+│   │   ├── risk_model.py        # RandomForestClassifier inference & versioning
+│   │   ├── risk_scoring.py      # Hybrid score: 0.6 * rule_score + 0.4 * ml_score
+│   │   ├── evidence.py          # Grounded structured evidence engine
+│   │   ├── explainer.py         # Numerical, factual 3-6 sentence explanations
+│   │   ├── chatbot.py           # Question-specific grounded assistant
+│   │   └── service.py           # Analysis orchestrator & persistence
+│   │
 │   ├── models/                  # SQLAlchemy ORM Models
 │   │   ├── user.py              # User profiles & role-based access
 │   │   ├── invoice.py           # Invoices, line items, metadata, status
 │   │   ├── exception.py         # Exception records, evidence, resolution
 │   │   ├── audit_log.py         # Immutable audit history
 │   │   ├── chat.py              # AI Assistant query logs
-│   │   └── setting.py           # Dynamic company policy rules
+│   │   ├── setting.py           # Dynamic company policy rules
+│   │   └── ai_analysis.py       # Persisted explainable AI analysis records
 │   │
 │   ├── schemas/                 # Pydantic Schemas (FastAPI & Frontend compatible)
 │   │   ├── user.py
@@ -94,7 +105,8 @@ backend/
 │   │   ├── dashboard.py
 │   │   ├── audit.py
 │   │   ├── chat.py
-│   │   └── setting.py
+│   │   ├── setting.py
+│   │   └── ai.py
 │   │
 │   ├── api/                     # API Routers
 │   │   ├── deps.py              # Role-based access control & user context
@@ -102,9 +114,10 @@ backend/
 │   │   ├── exceptions.py        # List, detail, approve, reject, notes
 │   │   ├── dashboard.py         # Stats, growth metrics, category breakdowns
 │   │   ├── audit.py             # Immutable audit log queries
-│   │   ├── chat.py              # Context-grounded AI Assistant
+│   │   ├── chat.py              # Grounded question-specific AI Assistant
 │   │   ├── users.py             # Current user context & user roster
-│   │   └── settings.py          # Manager policy limits & threshold config
+│   │   ├── settings.py          # Manager policy limits & threshold config
+│   │   └── ai.py                # POST /ai/analyze/:id, GET /ai/explanation/:id
 │   │
 │   ├── services/                # Core Business Logic Services
 │   │   ├── invoice_service.py   # Multi-format ingestion, column normalization
@@ -124,14 +137,26 @@ backend/
 │       ├── policy_rules.py      # RULE 5: High-value policy threshold checks
 │       └── duplicate_rules.py   # Duplicate invoice matching
 │
+├── data/                        # Training data
+│   └── invoice_training.csv     # 1,500 synthetic reference records
+│
+├── models/                      # Saved trained models
+│   ├── invoice_risk_model.joblib# Serialized RandomForestClassifier
+│   └── model_metadata.json      # Model version, feature list & metrics
+│
+├── scripts/                     # ML Dataset & Training Scripts
+│   ├── generate_training_data.py# Generates synthetic training dataset
+│   └── train_risk_model.py      # Trains, evaluates, and saves risk model
+│
 ├── sample_data/                 # Ready-to-upload demo files
 │   ├── sample_invoices.csv
 │   └── sample_invoices.xlsx
 │
-├── tests/                       # Automated Pytest suite
+├── tests/                       # Automated Pytest suite (28 tests)
 │   ├── test_rules.py
 │   ├── test_validation_engine.py
-│   └── test_api_endpoints.py
+│   ├── test_api_endpoints.py
+│   └── test_ai_module.py
 │
 ├── uploads/                     # Upload storage directory
 ├── requirements.txt             # Python dependencies
@@ -266,9 +291,40 @@ The backend enforces permissions on every request using headers:
 
 ---
 
-## 9. Running the Automated Tests
+## 9. Machine Learning Risk Model Pipeline
 
-Run the complete test suite using Pytest:
+VeriFlow features a modular Machine Learning pipeline using **RandomForestClassifier** trained on 14 numerical accounting signals.
+
+> **Disclaimer:** The ML model is a demo/training model trained on synthetic reference data. Its output represents statistical anomaly likelihood and review priority, NOT legal or financial proof of fraud.
+
+### Generate Synthetic Training Data
+```bash
+backend\venv\Scripts\python.exe backend/scripts/generate_training_data.py
+```
+Outputs `backend/data/invoice_training.csv` with 1,500 balanced records (clean, duplicates, tax calculation variances, policy violations, missing fields).
+
+### Train & Evaluate ML Risk Model
+```bash
+backend\venv\Scripts\python.exe backend/scripts/train_risk_model.py
+```
+Evaluates:
+- **Accuracy, Precision, Recall, F1 Score, Confusion Matrix**
+- Serializes trained model: `backend/models/invoice_risk_model.joblib`
+- Saves feature order metadata: `backend/models/model_metadata.json`
+
+### Hybrid Scoring Formula
+$$\text{final\_score} = 0.6 \times \text{rule\_score} + 0.4 \times \text{ml\_score}$$
+
+- **0–19**: LOW Risk
+- **20–39**: MEDIUM Risk
+- **40–69**: HIGH Risk
+- **70–100**: CRITICAL Risk
+
+---
+
+## 10. Running the Automated Tests
+
+Run the complete 28-test suite across rules, scoring, AI evidence, chatbot grounding, and API endpoints:
 
 ```bash
 backend\venv\Scripts\pytest backend/tests -v
@@ -282,15 +338,17 @@ Tests include:
 - Policy threshold violations
 - Duplicate invoice detection (exact and fuzzy vendor matching)
 - Auto-pass vs Human-review decision routing
-- Risk scoring and categorization (LOW, MEDIUM, HIGH, CRITICAL)
+- 14-Feature ML extraction & inference
+- Hybrid 0-100 risk scoring
+- Grounded, numerical AI explanation generation (answering "WHY FLAGGED")
+- Chatbot hallucination prevention & invoice isolation
 - CSV file upload pipeline
 - Auditor approve/reject workflow & immutable audit logging
 - Role-based authorization enforcement
-- AI Assistant grounded Q&A
 
 ---
 
-## 10. Example API Requests
+## 11. Example API Requests
 
 ### 1. Ingest Invoices from File
 ```bash
@@ -299,23 +357,30 @@ curl -X POST "http://localhost:8000/api/invoices/upload" \
   -F "file=@backend/sample_data/sample_invoices.csv"
 ```
 
-### 2. Get Dashboard Stats
+### 2. Run Live ML Risk Analysis on an Invoice
 ```bash
-curl -X GET "http://localhost:8000/api/dashboard/stats" \
+curl -X POST "http://localhost:8000/api/ai/analyze/INV-00124" \
   -H "X-User-Role: AP_REVIEWER"
 ```
 
-### 3. Approve an Exception
+### 3. Get Grounded Explanation for an Invoice
 ```bash
-curl -X POST "http://localhost:8000/api/exceptions/INV-00125/approve" \
-  -H "Content-Type: application/json" \
-  -H "X-User-Role: AP_REVIEWER" \
-  -d '{"note": "Vendor provided credit note reconcilation CN-401"}'
+curl -X GET "http://localhost:8000/api/ai/explanation/INV-00125" \
+  -H "X-User-Role: AP_REVIEWER"
 ```
 
-### 4. Query AI Assistant
+### 4. Query Grounded AI Assistant (Question-Specific)
 ```bash
 curl -X POST "http://localhost:8000/api/chat" \
   -H "Content-Type: application/json" \
   -d '{"message": "Why was invoice INV-00124 flagged?", "invoice_id": "INV-00124"}'
 ```
+
+### 5. Approve an Exception
+```bash
+curl -X POST "http://localhost:8000/api/exceptions/INV-00125/approve" \
+  -H "Content-Type: application/json" \
+  -H "X-User-Role: AP_REVIEWER" \
+  -d '{"note": "Vendor provided credit note reconciliation CN-401"}'
+```
+
