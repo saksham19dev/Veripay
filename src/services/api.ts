@@ -21,10 +21,12 @@ class ApiService {
     }
 
     try {
+      const activeRole = localStorage.getItem('veriflow_active_role_v1') || 'AP_REVIEWER';
       const res = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          'X-User-Role': activeRole,
           ...(options?.headers || {}),
         },
       });
@@ -128,8 +130,12 @@ class ApiService {
       try {
         const formData = new FormData();
         formData.append('file', file);
+        const role = localStorage.getItem('veriflow_active_role_v1') || 'AP_REVIEWER';
         const res = await fetch(`${this.baseUrl}/api/invoices/upload`, {
           method: 'POST',
+          headers: {
+            'X-User-Role': role,
+          },
           body: formData,
         });
         if (res.ok) return await res.json();

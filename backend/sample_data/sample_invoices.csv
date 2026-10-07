@@ -1,0 +1,6 @@
+Invoice Number,Supplier Name,Invoice Date,Due Date,Amount,Tax Amount,Total Amount,Currency,Purchase Order,Department,Description
+INV-SAMPLE-01,Tata Tech Solutions Ltd,15 Sep 2025,15 Oct 2025,48000,8640,56640,INR,PO-2025-5011,IT Infrastructure,Annual Server Maintenance
+INV-SAMPLE-02,Apex Logistics Hub,16 Sep 2025,16 Oct 2025,360000,64800,424800,INR,PO-2025-5012,Logistics,Pan-India Warehouse Transit (Exceeds Policy)
+INV-SAMPLE-03,Global Supplies Ltd.,09 Sep 2025,09 Oct 2025,120500,21690,142190,INR,PO-2025-7719,Facilities,Duplicate of Existing Batch
+INV-SAMPLE-04,Nexus Hardware Distributors,17 Sep 2025,17 Oct 2025,75000,8500,91000,INR,PO-2025-5014,Hardware,Tax Calculation Discrepancy
+,Unregistered Vendor,18 Sep 2025,,12000,0,12000,INR,,Operations,Missing Mandatory Invoice Number
